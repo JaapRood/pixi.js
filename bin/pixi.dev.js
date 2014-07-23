@@ -1,10 +1,10 @@
 /**
  * @license
- * pixi.js - v1.6.0
+ * pixi.js - v1.6.1
  * Copyright (c) 2012-2014, Mat Groves
  * http://goodboydigital.com/
  *
- * Compiled: 2014-07-18
+ * Compiled: 2014-07-23
  *
  * pixi.js is licensed under the MIT License.
  * http://www.opensource.org/licenses/mit-license.php
@@ -599,6 +599,45 @@ PIXI.Matrix.prototype.toArray = function(transpose)
     }
 
     return array;
+};
+
+/**
+ * Get a new position with the current transormation applied.
+ * Can be used to go from a child's coordinate space to the world coordinate space. (e.g. rendering)
+ *
+ * @method apply
+ * @param pos {Point} The origin
+ * @param [newPos] {Point} The point that the new position is assigned to (allowed to be same as input)
+ * @return {Point} The new point, transformed trough this matrix
+ */
+PIXI.Matrix.prototype.apply = function(pos, newPos)
+{
+    newPos = newPos || new PIXI.Point();
+
+    newPos.x = this.a * pos.x + this.b * pos.y + this.tx;
+    newPos.y = this.c * pos.x + this.d * pos.y + this.ty;
+
+    return newPos;
+};
+
+/**
+ * Get a new position with the inverse of the current transormation applied.
+ * Can be used to go from the world coordinate space to a child's coordinate space. (e.g. input)
+ *
+ * @method apply
+ * @param pos {Point} The origin
+ * @param [newPos] {Point} The point that the new position is assigned to (allowed to be same as input)
+ * @return {Point} The new point, inverse-transformed trough this matrix
+ */
+PIXI.Matrix.prototype.applyInverse = function(pos, newPos)
+{
+    newPos = newPos || new PIXI.Point();
+
+    var id = 1 / (this.a * this.d + this.b * -this.c);
+    newPos.x = this.d * id * pos.x - this.b * id * pos.y + (this.ty * this.b - this.tx * this.d) * id;
+    newPos.y = this.a * id * pos.y - this.c * id * pos.x + (this.tx * this.c - this.ty * this.a) * id;
+
+    return newPos;
 };
 
 PIXI.identityMatrix = new PIXI.Matrix();
@@ -4441,9 +4480,10 @@ PIXI.EventTarget = function () {
  * @param [view] {Canvas} the canvas to use as a view, optional 
  * @param [transparent=false] {Boolean} the transparency of the render view, default false
  * @param [antialias=false] {Boolean} sets antialias (only applicable in webGL chrome at the moment)
+ * @param [preserveDrawingBuffer=false] {Boolean} enables drawing buffer preservation, enable this if you need to call toDataUrl on the webgl context
  *
  */
-PIXI.autoDetectRenderer = function(width, height, view, transparent, antialias)
+PIXI.autoDetectRenderer = function(width, height, view, transparent, antialias, preserveDrawingBuffer)
 {
     if(!width)width = 800;
     if(!height)height = 600;
@@ -4459,7 +4499,7 @@ PIXI.autoDetectRenderer = function(width, height, view, transparent, antialias)
 
     if( webgl )
     {
-        return new PIXI.WebGLRenderer(width, height, view, transparent, antialias);
+        return new PIXI.WebGLRenderer(width, height, view, transparent, antialias, preserveDrawingBuffer);
     }
 
     return  new PIXI.CanvasRenderer(width, height, view, transparent);
@@ -4477,9 +4517,10 @@ PIXI.autoDetectRenderer = function(width, height, view, transparent, antialias)
  * @param [view] {Canvas} the canvas to use as a view, optional 
  * @param [transparent=false] {Boolean} the transparency of the render view, default false
  * @param [antialias=false] {Boolean} sets antialias (only applicable in webGL chrome at the moment)
+ * @param [preserveDrawingBuffer=false] {Boolean} enables drawing buffer preservation, enable this if you need to call toDataUrl on the webgl context
  *
  */
-PIXI.autoDetectRecommendedRenderer = function(width, height, view, transparent, antialias)
+PIXI.autoDetectRecommendedRenderer = function(width, height, view, transparent, antialias, preserveDrawingBuffer)
 {
     if(!width)width = 800;
     if(!height)height = 600;
@@ -4497,7 +4538,7 @@ PIXI.autoDetectRecommendedRenderer = function(width, height, view, transparent, 
 
     if( webgl && !isAndroid)
     {
-        return new PIXI.WebGLRenderer(width, height, view, transparent, antialias);
+        return new PIXI.WebGLRenderer(width, height, view, transparent, antialias, preserveDrawingBuffer);
     }
 
     return  new PIXI.CanvasRenderer(width, height, view, transparent);
@@ -5309,6 +5350,20 @@ PIXI.StripShader.prototype.init = function()
     this.alpha = gl.getUniformLocation(program, 'alpha');
 
     this.program = program;
+};
+
+/**
+* Destroys the shader
+* @method destroy
+*
+*/
+PIXI.StripShader.prototype.destroy = function()
+{
+    this.gl.deleteProgram( this.program );
+    this.uniforms = null;
+    this.gl = null;
+
+    this.attribute = null;
 };
 
 /**
@@ -6898,7 +6953,7 @@ PIXI.WebGLRenderer.prototype.handleContextRestored = function()
     // need to set the context...
     this.shaderManager.setContext(gl);
     this.spriteBatch.setContext(gl);
-    this.primitiveBatch.setContext(gl);
+    // this.primitiveBatch.setContext(gl);
     this.maskManager.setContext(gl);
     this.filterManager.setContext(gl);
 
@@ -6950,7 +7005,7 @@ PIXI.WebGLRenderer.prototype.destroy = function()
     // time to create the render managers! each one focuses on managine a state in webGL
     this.shaderManager.destroy();
     this.spriteBatch.destroy();
-    this.primitiveBatch.destroy();
+    // this.primitiveBatch.destroy();
     this.maskManager.destroy();
     this.filterManager.destroy();
 
